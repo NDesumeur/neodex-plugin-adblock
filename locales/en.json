@@ -48,5 +48,12 @@
  "Ajoutés par le clic droit sur ADBLOCK (« une pub est passée ? »). La croix le débloque.": "Added by right-clicking ADBLOCK (\"an ad got through?\"). The cross unblocks it.",
  "Rallumer le bloqueur sur": "Turn the blocker back on for",
  "Débloquer": "Unblock",
- "X": "X"
+ "X": "X",
+ "· clic droit : une pub est passée ?": "· right click: did an ad get through?",
+ "· chargement…": "· loading…",
+ "bloqueur de pub indisponible :": "ad blocker unavailable:",
+ "règles YouTube :": "YouTube rules:",
+ "règles YouTube d'uBO :": "uBO's YouTube rules:",
+ "règles :": "rules:",
+ "youtube-rules ÉCHEC": "youtube-rules FAILED"
 }

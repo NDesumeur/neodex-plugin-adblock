@@ -1,0 +1,26 @@
+{
+  "id": "neodex.adblock",
+  "name": "Bloqueur de pubs",
+  "version": "1.0.0",
+  "author": "NDesumeur",
+  "description": "Le bloqueur de pubs et de traqueurs des sites ouverts dans NeoDex : toutes les listes d'uBlock Origin (pubs, pistage, nuisances, bandeaux de cookies) et EasyList, par le moteur de Ghostery, rafraîchies chaque semaine. YouTube a ses propres règles, reprises d'uBlock Origin toutes les 12 heures (vidéos sans pubs, « Passer » cliqué pour toi). Le bouton ADBLOCK de la barre d'adresse le coupe sur un site ; son clic droit, « une pub est passée ? », bloque ce que tu coches. Avant NeoDex 3.2, il était dans NeoDex : tes sites exclus sont repris.",
+  "icon": "icon.png",
+  "entry": "index.js",
+  "main": "main.js",
+  "view": "adblock",
+  "autoload": true,
+  "neobase": ">=4.0.0",
+  "neodex": ">=3.2.0",
+  "type": "app",
+  "category": "Système",
+  "compatibility": ["windows", "linux"],
+  "syncMode": "aucune",
+  "syncInfo": "Rien n'est synchronisé : chaque PC a ses listes et ses sites exclus.",
+  "mobile": false,
+  "system": false,
+  "dependencies": {},
+  "sdk": "2.1.0",
+  "permissions": [
+    "full"
+  ]
+}

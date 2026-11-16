@@ -1,0 +1,9 @@
+{
+  "pluginId": "neodex.adblock",
+  "repo": "NDesumeur/neodex-plugin-adblock",
+  "version": "1.0.0",
+  "sha256": "82cf846b490bb47206e7ef5c5accd844a703805358edc2b45a3066b76252e6cc",
+  "approvedAt": "2026-11-16T16:38:45.677Z",
+  "neobase": ">=4.0.0",
+  "signature": "cG4y+tRZ5mUxPI68kqkHQ6nSo63mZXL18n/o7rMTjuAxN0SweXgq6YJ6UZR/ZULL72D9UJVCKC55NVPYXhMxAQ=="
+}

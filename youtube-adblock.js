@@ -5,6 +5,29 @@
 const { ipcRenderer, webFrame } = require('electron');
 
 const rules = /(^|\.)youtube(-nocookie)?\.com$/.test(location.hostname) && ipcRenderer.sendSync('adblock:youtube', location.href);
+
+// SponsorBlock (réglé dans l'onglet Bloqueur de pubs, même si le blocage des pubs est coupé sur YouTube) : les passages d'une vidéo
+// sont demandés au volet système quand la vidéo change ; un passage est sauté une fois, jamais pendant une pub de YouTube
+if (window === window.top && /(^|\.)youtube\.com$/.test(location.hostname)) {
+  const fr = /^fr/i.test(navigator.language || '');
+  const NAMES = fr ? { sponsor: 'sponsor', selfpromo: 'autopromo', interaction: 'rappel d’abonnement', intro: 'générique de début', outro: 'générique de fin', preview: 'aperçu', filler: 'hors-sujet', music_offtopic: 'passage sans musique' }
+    : { sponsor: 'sponsor', selfpromo: 'self-promotion', interaction: 'subscribe reminder', intro: 'intro', outro: 'outro', preview: 'preview', filler: 'filler', music_offtopic: 'non-music part' };
+  let vid = '', segs = [], done = new Set(), note = null;
+  const tell = (cat, sec) => {
+    note?.remove(); note = document.createElement('div');
+    note.style.cssText = 'position:fixed;z-index:2147483647;left:16px;bottom:72px;padding:8px 12px;background:rgba(20,10,38,.92);color:#fff;font:14px Roboto,Arial,sans-serif;border-left:4px solid #00d400;pointer-events:none';
+    note.textContent = (fr ? 'Passé : ' : 'Skipped: ') + (NAMES[cat] || cat) + ' (' + Math.round(sec) + ' s) · SponsorBlock';
+    document.documentElement.append(note); const n = note; setTimeout(() => n.remove(), 3500);
+  };
+  setInterval(() => {
+    const id = location.pathname === '/watch' ? new URLSearchParams(location.search).get('v') || '' : '';
+    if (id !== vid) { vid = id; segs = []; done = new Set(); if (id) ipcRenderer.invoke('adblock:sponsor', id).then(s => { if (vid === id) segs = s || []; }, () => {}); return; }
+    const p = document.getElementById('movie_player'), v = p && p.querySelector('video');
+    if (!segs.length || !v || p.classList.contains('ad-showing') || v.paused && v.currentTime === 0) return;
+    const t = v.currentTime;
+    for (const [s, e, cat] of segs) if (t >= s && t < e - 0.6 && !done.has(s)) { done.add(s); v.currentTime = Math.min(e, v.duration || e); ipcRenderer.send('adblock:sponsored', e - t); tell(cat, e - t); break; }
+  }, 300);
+}
 if (rules) {
   // 1. les scriptlets d'uBlock Origin pour YouTube (listes rafraîchies chaque semaine), avant les scripts de la page
   // un seul script fermé (assemblé dans main.js) : rien n'apparaît dans window que YouTube pourrait repérer

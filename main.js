@@ -16,9 +16,9 @@ console.assert(siteOf('mail.google.com') === 'google.com' && siteOf('www.bbc.co.
 
 module.exports = function (api) {
   const E = api.electron, { webContents } = E, dataDir = api.dataDir; fs.mkdirSync(dataDir, { recursive: true });
-  const cfg = { on: true, off: [], mine: [], ...(api.readDoc('reglages') || {}) };  // off : les sites où il est coupé ; mine : les domaines que tu as bloqués toi-même
+  const cfg = { on: true, off: [], mine: [], hide: {}, sb: { on: true, cats: ['sponsor', 'selfpromo', 'interaction'], n: 0, saved: 0 }, ...(api.readDoc('reglages') || {}) };  // hide : site -> les blocs que tu as masqués (sélecteurs CSS)  // off : les sites où il est coupé ; mine : les domaines que tu as bloqués toi-même
   const save = () => api.writeDoc('reglages', cfg);
-  const view = () => ({ on: cfg.on, off: cfg.off, mine: cfg.mine, lists: listsAt(), ready: !!blocker });
+  const view = () => ({ on: cfg.on, off: cfg.off, mine: cfg.mine, hide: cfg.hide, sb: cfg.sb, lists: listsAt(), ready: !!blocker });
   const tell = () => api.emit('state', view());
   // coupé partout, sur le site de l'onglet, sur YouTube (géré à part) ou sur un lecteur d'anime
   const blockingOff = url => { const h = hostOf(url); return !cfg.on || isYouTube(h) || PLAYER_HOSTS.test(h) || cfg.off.includes(h); };
@@ -99,6 +99,42 @@ module.exports = function (api) {
   };
   for (const [k, f] of Object.entries(ipc)) E.ipcMain.on(k, f);
 
+  // les blocs masqués : une feuille de style posée à chaque page du site (une règle par bloc : une règle cassée ne casse pas les autres)
+  const hideCss = h => (cfg.hide[h] || []).map(s => s + '{display:none!important}').join('\n');
+  const applyHide = wc => {
+    try { if (wc.isDestroyed() || wc.getType() !== 'webview') return; const h = hostOf(wc.getURL()); if (!cfg.on || cfg.off.includes(h)) return;
+      const css = hideCss(h); if (css) wc.insertCSS(css, { cssOrigin: 'user' }).catch(() => {}); } catch {}
+  };
+  const hooks = new Map(), hook = wc => { if (hooks.has(wc)) return; const f = () => applyHide(wc); hooks.set(wc, f); wc.on('dom-ready', f); wc.once('destroyed', () => hooks.delete(wc)); };
+  const onCreated = (_, wc) => hook(wc);
+  for (const wc of webContents.getAllWebContents()) hook(wc);
+  E.app.on('web-contents-created', onCreated);
+  const pageWcs = h => webContents.getAllWebContents().filter(wc => !wc.isDestroyed() && wc.getType() === 'webview' && hostOf(wc.getURL()) === h);
+  // un sélecteur venu de la page : du CSS simple seulement (pas d'accolade ni de commentaire qui sortirait de la règle)
+  const okSel = s => typeof s === 'string' && s.length > 0 && s.length <= 500 && !/[{}<]|\/\*/.test(s);
+  console.assert(okSel('div.pub > span:nth-child(2)') && !okSel('a{}body{display:none') && !okSel(''), 'bloqueur : sélecteur');
+
+  // SponsorBlock : les passages sponsorisés d'une vidéo, d'après la base collaborative sponsor.ajay.app.
+  // On n'envoie que les 4 premiers caractères de l'empreinte SHA-256 de la vidéo : le serveur rend les vidéos qui commencent pareil, sans savoir laquelle tu regardes.
+  const SB_CATS = ['sponsor', 'selfpromo', 'interaction', 'intro', 'outro', 'preview', 'filler', 'music_offtopic'], sbCache = new Map();
+  async function sbSegments(id) {
+    id = String(id); if (!cfg.sb.on || !/^[\w-]{11}$/.test(id) || !cfg.sb.cats.length) return [];
+    const key = id + cfg.sb.cats.join(), hit = sbCache.get(key); if (hit && Date.now() - hit.at < 3600e3) return hit.segs;
+    const pre = require('crypto').createHash('sha256').update(id).digest('hex').slice(0, 4);
+    const r = await fetch('https://sponsor.ajay.app/api/skipSegments/' + pre + '?categories=' + encodeURIComponent(JSON.stringify(cfg.sb.cats)), { headers: { 'User-Agent': 'NeoDex' }, signal: AbortSignal.timeout(6000) });
+    const list = r.status === 404 ? [] : r.ok ? await r.json() : null; if (!list) throw new Error('SponsorBlock : ' + r.status);
+    const segs = (list.find(x => x.videoID === id)?.segments || []).filter(s => (s.actionType || 'skip') === 'skip' && Array.isArray(s.segment) && s.segment[1] > s.segment[0])
+      .map(s => [+s.segment[0], +s.segment[1], s.category]).sort((a, b) => a[0] - b[0]);
+    sbCache.set(key, { at: Date.now(), segs }); if (sbCache.size > 300) sbCache.delete(sbCache.keys().next().value);
+    return segs;
+  }
+  let sbSaveT = null;
+  E.ipcMain.handle('adblock:sponsor', (e, id) => /(^|\.)youtube\.com$/.test(hostOf(e.sender.getURL() || 'about:blank')) ? sbSegments(id).catch(() => []) : []);
+  E.ipcMain.on('adblock:sponsored', (e, sec) => {  // un passage sauté : le compteur de l'onglet du plugin (écrit au plus toutes les 30 s)
+    if (!Number.isFinite(sec) || sec <= 0 || sec > 3600) return; cfg.sb.n++; cfg.sb.saved += sec; tell();
+    if (!sbSaveT) sbSaveT = setTimeout(() => { sbSaveT = null; save(); tell(); }, 30000);
+  });
+
   // ce que demande la page du plugin
   const reload = () => { for (const wc of webContents.getAllWebContents()) if (!wc.isDestroyed() && wc.getType() === 'webview') try { wc.reload(); } catch {} };
   api.ipcMain.handle('state', () => view());
@@ -107,6 +143,22 @@ module.exports = function (api) {
     host = hostOf('https://' + String(host)); if (!host) throw new Error('site invalide');
     cfg.off = off ? [...new Set([...cfg.off, host])] : cfg.off.filter(h => h !== host); save(); tell(); return view();
   });
+  api.ipcMain.handle('hide', (_, host, sel) => {  // un bloc choisi dans la page : masqué tout de suite sur les onglets de ce site, et à chaque visite
+    host = hostOf('https://' + String(host)); if (!host || !okSel(sel)) throw new Error('bloc invalide');
+    const l = cfg.hide[host] || []; if (!l.includes(sel)) cfg.hide[host] = [...l, sel].slice(-200);
+    save(); tell(); for (const wc of pageWcs(host)) applyHide(wc); return view();
+  });
+  api.ipcMain.handle('unhide', (_, host, sel) => {  // sans sélecteur : tous les blocs du site ; les onglets du site sont rechargés pour les revoir
+    host = hostOf('https://' + String(host));
+    const l = (cfg.hide[host] || []).filter(s => sel != null && s !== sel); if (l.length) cfg.hide[host] = l; else delete cfg.hide[host];
+    save(); tell(); for (const wc of pageWcs(host)) try { wc.reload(); } catch {} return view();
+  });
+  api.ipcMain.handle('sb', (_, o = {}) => {  // allumer ou couper SponsorBlock, choisir les passages à sauter
+    if (typeof o.on === 'boolean') cfg.sb.on = o.on;
+    if (Array.isArray(o.cats)) cfg.sb.cats = o.cats.filter(c => SB_CATS.includes(c));
+    sbCache.clear(); save(); tell(); return view();
+  });
+  api.ipcMain.handle('sbSegments', (_, id) => sbSegments(id));  // l'auto-test
   api.ipcMain.handle('unmine', (_, site) => { cfg.mine = cfg.mine.filter(m => m !== site); save(); tell(); return view(); });
   api.ipcMain.handle('seen', (_, wcId) => {
     const n = {}; for (const { h, type } of adSeen.get(wcId) || []) { const k = siteOf(h); (n[k] ??= { site: k, hosts: new Set(), types: new Set(), count: 0 }).count++; n[k].hosts.add(h); n[k].types.add(type); }
@@ -132,6 +184,8 @@ module.exports = function (api) {
   return () => {  // plugin désactivé ou désinstallé : plus rien ne bloque, les sites rechargés retrouvent tout
     alive = false;
     for (const k of Object.keys(ipc)) E.ipcMain.removeAllListeners(k);
+    E.ipcMain.removeHandler('adblock:sponsor'); E.ipcMain.removeAllListeners('adblock:sponsored'); clearTimeout(sbSaveT);
+    E.app.removeListener('web-contents-created', onCreated); for (const [wc, f] of hooks) try { wc.removeListener('dom-ready', f); } catch {}
     for (const ses of sessions) {
       try { blocker?.disableBlockingInSession(ses); } catch {}
       try { ses.webRequest.onBeforeRequest(null); ses.webRequest.onHeadersReceived(null); } catch {}

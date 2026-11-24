@@ -1,9 +1,9 @@
 {
   "id": "neodex.adblock",
   "name": "Bloqueur de pubs",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "NDesumeur",
-  "description": "Le bloqueur de pubs et de traqueurs des sites ouverts dans NeoDex : toutes les listes d'uBlock Origin (pubs, pistage, nuisances, bandeaux de cookies) et EasyList, par le moteur de Ghostery, rafraîchies chaque semaine. YouTube a ses propres règles, reprises d'uBlock Origin toutes les 12 heures (vidéos sans pubs, « Passer » cliqué pour toi). Le bouton ADBLOCK de la barre d'adresse le coupe sur un site ; son clic droit, « une pub est passée ? », bloque ce que tu coches. Avant NeoDex 3.2, il était dans NeoDex : tes sites exclus sont repris.",
+  "description": "Le bloqueur de pubs et de traqueurs des sites ouverts dans NeoDex : toutes les listes d'uBlock Origin (pubs, pistage, nuisances, bandeaux de cookies) et EasyList, par le moteur de Ghostery, rafraîchies chaque semaine. YouTube a ses propres règles, reprises d'uBlock Origin toutes les 12 heures (vidéos sans pubs, « Passer » cliqué pour toi). Le bouton ADBLOCK de la barre d'adresse le coupe sur un site ; son clic droit, « une pub est passée ? », bloque ce que tu coches. Avant NeoDex 3.2, il était dans NeoDex : tes sites exclus sont repris. MASQUER UN BLOC… (même clic droit) : clique sur un bloc d’une page pour qu’il disparaisse de ce site à chaque visite. Sur YouTube, les passages sponsorisés sont sautés grâce à SponsorBlock (catégories au choix).",
   "icon": "icon.png",
   "entry": "index.js",
   "main": "main.js",
@@ -13,7 +13,10 @@
   "neodex": ">=3.2.0",
   "type": "app",
   "category": "Système",
-  "compatibility": ["windows", "linux"],
+  "compatibility": [
+    "windows",
+    "linux"
+  ],
   "syncMode": "aucune",
   "syncInfo": "Rien n'est synchronisé : chaque PC a ses listes et ses sites exclus.",
   "mobile": false,
